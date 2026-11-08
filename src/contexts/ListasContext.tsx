@@ -5,7 +5,6 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import dadosFinanceiros from '../mocks/lancamentos';
 import {
   ehReferencia,
   type ItemLista,
@@ -53,15 +52,10 @@ function carregarListas(): Lista[] {
       if (Array.isArray(dados)) return (dados as ListaLegada[]).map(migrar);
     }
   } catch {
-    // Armazenamento indisponível ou corrompido: começa do mock.
+    // Armazenamento indisponível ou corrompido: começa sem listas.
   }
 
-  return [
-    {
-      ...dadosFinanceiros.lista,
-      itens: dadosFinanceiros.lancamentos as Lancamento[],
-    },
-  ];
+  return [];
 }
 
 const ListasContext = createContext<ListasContextValue | null>(null);

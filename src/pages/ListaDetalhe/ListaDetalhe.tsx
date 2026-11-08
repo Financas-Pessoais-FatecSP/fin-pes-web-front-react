@@ -47,6 +47,10 @@ function obterDataAtual() {
   return `${ano}-${mes}-${dia}`;
 }
 
+function gerarIdReferencia() {
+  return Date.now();
+}
+
 type Aba = 'lancamentos' | 'ritmo' | 'dashboard';
 
 const ABAS = [
@@ -198,7 +202,7 @@ export default function ListaDetalhe() {
     }
 
     const novaReferencia: ReferenciaLista = {
-      id: Date.now(),
+      id: gerarIdReferencia(),
       listaId: idSelecionado,
       data,
       observacao: observacao.trim(),
