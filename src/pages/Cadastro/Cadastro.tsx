@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useForm, useWatch, type SubmitHandler } from 'react-hook-form';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 type CadastroFormData = {
   nome: string;
+  sobrenome: string;
   email: string;
   senha: string;
   confirmarSenha: string;
@@ -11,6 +13,8 @@ type CadastroFormData = {
 
 export default function Cadastro() {
   const [mensagem, setMensagem] = useState('');
+  const { signUp } = useAuth();
+  const navigate = useNavigate();
 
   const {
     register,
@@ -19,11 +23,23 @@ export default function Cadastro() {
     formState: { errors, isSubmitting },
   } = useForm<CadastroFormData>();
 
-  const onSubmit: SubmitHandler<CadastroFormData> = (data) => {
+  const onSubmit: SubmitHandler<CadastroFormData> = async (data) => {
     setMensagem('');
-
-    // Aqui você conectará o cadastro ao serviço de autenticação.
-    setMensagem(`Formulário validado para ${data.nome}!`);
+    try {
+      await signUp({
+        name: data.nome.trim(),
+        surname: data.sobrenome.trim(),
+        email: data.email,
+        password: data.senha,
+      });
+      navigate('/dashboard', { replace: true });
+    } catch (error) {
+      setMensagem(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível criar a conta. Verifique os dados e tente novamente.',
+      );
+    }
   };
 
   const senha = useWatch({
@@ -90,6 +106,36 @@ export default function Cadastro() {
             {errors.nome?.message && (
               <p className="mt-1 text-sm text-red-600" role="alert">
                 {errors.nome.message}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label
+              htmlFor="sobrenome"
+              className="mb-2 block text-sm font-semibold text-forest-950"
+            >
+              Sobrenome
+            </label>
+            <input
+              id="sobrenome"
+              type="text"
+              autoComplete="family-name"
+              placeholder="Digite seu sobrenome"
+              aria-invalid={!!errors.sobrenome}
+              {...register('sobrenome', {
+                required: 'Informe seu sobrenome.',
+                minLength: { value: 2, message: 'Digite pelo menos 2 caracteres.' },
+              })}
+              className={`w-full rounded-xl border px-4 py-3 outline-none transition focus:ring-2 focus:ring-forest-500 ${
+                errors.sobrenome
+                  ? 'border-red-500'
+                  : 'border-gray-300 focus:border-forest-600'
+              }`}
+            />
+            {errors.sobrenome?.message && (
+              <p className="mt-1 text-sm text-red-600" role="alert">
+                {errors.sobrenome.message}
               </p>
             )}
           </div>

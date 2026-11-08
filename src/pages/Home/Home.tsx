@@ -1,6 +1,10 @@
 import { Link } from 'react-router-dom';
+import { ArrowRight } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function Home() {
+  const { token } = useAuth();
+
   return (
     <div className="bg-home min-h-screen bg-cover bg-forest-100 bg-center flex items-center">
       <div className="w-full md:w-8/12 lg:w-7/12 px-6 md:px-12 lg:px-16 py-12">
@@ -15,20 +19,16 @@ export default function Home() {
           Equilíbrio para suas finanças.
         </h2>
 
-        <Link className="flex flex-col items-center" to="/dash">
-          <button className="cursor-pointer rounded-xl px-8 py-4 font-bold text-forest-950">
-            SÓ_TRISTEZA
-          </button>
-        </Link>
-
-        <div className="mt-25 flex flex-col items-center">
-          <Link to="/cadastro">
-            <button className="cursor-pointer rounded-xl bg-[#FBFE34] px-8 py-4 text-lg font-bold text-forest-950 shadow-md transition duration-200 hover:scale-103 hover:bg-[#E8EB20] active:scale-95">
-              Criar minha conta →
-            </button>
+        <div className="mt-12 flex flex-col items-center sm:items-start">
+          <Link
+            to={token ? '/dashboard' : '/cadastro'}
+            className="inline-flex items-center gap-2 rounded-xl bg-[#FBFE34] px-8 py-4 text-lg font-bold text-forest-950 shadow-md transition duration-200 hover:bg-[#E8EB20] active:scale-95"
+          >
+            {token ? 'Abrir painel' : 'Criar minha conta'}
+            <ArrowRight size={20} aria-hidden="true" />
           </Link>
 
-          <p className="mt-4 text-sm text-forest-800 text-center">
+          {!token && <p className="mt-4 text-sm text-forest-800 text-center sm:text-left">
             Já tem cadastro?{' '}
             <Link
               to="/login"
@@ -36,7 +36,7 @@ export default function Home() {
             >
               Entre na sua conta
             </Link>
-          </p>
+          </p>}
         </div>
       </div>
     </div>

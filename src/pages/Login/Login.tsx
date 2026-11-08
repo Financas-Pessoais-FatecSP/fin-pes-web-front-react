@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 type LoginFormData = {
   email: string;
@@ -9,6 +10,8 @@ type LoginFormData = {
 
 export default function Login() {
   const [mensagem, setMensagem] = useState('');
+  const { signIn } = useAuth();
+  const navigate = useNavigate();
 
   const {
     register,
@@ -16,8 +19,14 @@ export default function Login() {
     formState: { errors, isSubmitting },
   } = useForm<LoginFormData>();
 
-  const onSubmit: SubmitHandler<LoginFormData> = (data) => {
-    setMensagem(`Formulário validado para ${data.email}!`);
+  const onSubmit: SubmitHandler<LoginFormData> = async (data) => {
+    setMensagem('');
+    try {
+      await signIn(data.email, data.senha);
+      navigate('/dashboard', { replace: true });
+    } catch {
+      setMensagem('E-mail ou senha inválidos. Tente novamente.');
+    }
   };
 
   return (
@@ -114,16 +123,6 @@ export default function Login() {
                 {errors.senha.message}
               </p>
             )}
-          </div>
-
-          {/* Recuperar senha */}
-          <div className="flex justify-end">
-            <Link
-              to="/recuperar-senha"
-              className="text-sm font-semibold text-forest-800 underline underline-offset-4 hover:text-forest-600"
-            >
-              Esqueci minha senha
-            </Link>
           </div>
 
           {/* Botão de login */}
