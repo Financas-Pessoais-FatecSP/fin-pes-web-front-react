@@ -19,6 +19,16 @@ import { apiRequest } from '../../utils/api';
 
 type Account = { id: number; name: string; status: string };
 type Category = { id: number; name: string; type: 'RECEITA' | 'DESPESA' };
+type SummaryEntry = {
+  id: number | null;
+  account: Account;
+  category: { id: number; name: string; type: string } | null;
+  type: string;
+  description: string;
+  amount: number;
+  date: string;
+  details: string | null;
+};
 type Entry = {
   id: number;
   accountId: number;
@@ -39,8 +49,8 @@ type Summary = {
   totalRevenues: number;
   totalExpenses: number;
   balance: number;
-  revenuesByCategory: Record<string, number>;
-  expensesByCategory: Record<string, number>;
+  balanceByAccount: (Account & { balance: number })[];
+  recentEntries: SummaryEntry[];
 };
 type CategoryReport = { totalAmount: number; entries: Entry[] };
 type Report = {
@@ -136,11 +146,21 @@ export default function FinanceDashboard() {
       setLoading(true);
       setError('');
       try {
-        const [accountData, categoryData, nextSummary, nextReport] =
+        if (panel === 'overview') {
+          const nextSummary = await apiRequest<Summary>(
+            `/dashboards/financial-summary?from=${from}&to=${to}`,
+            {},
+            authToken,
+          );
+          if (!active) return;
+          setSummary(nextSummary);
+          return;
+        }
+
+        const [accountData, categoryData, nextReport] =
           await Promise.all([
             apiRequest<{ accounts: Account[] }>('/accounts', {}, authToken),
             apiRequest<{ categories: Category[] }>('/entries/categories', {}, authToken),
-            apiRequest<Summary>(`/dashboards/financial-summary?from=${from}&to=${to}`, {}, authToken),
             apiRequest<Report>(`/reports/entries?from=${from}&to=${to}`, {}, authToken),
           ]);
         const accountEntries = await Promise.all(
@@ -156,7 +176,6 @@ export default function FinanceDashboard() {
         if (!active) return;
         setAccounts(accountData.accounts);
         setCategories(categoryData.categories);
-        setSummary(nextSummary);
         setReport(nextReport);
         setEntriesByAccount(Object.fromEntries(accountEntries));
         setEntryAccountId((current) => current || String(accountData.accounts[0]?.id ?? ''));
@@ -171,7 +190,7 @@ export default function FinanceDashboard() {
     return () => {
       active = false;
     };
-  }, [token, from, to, refreshKey]);
+  }, [token, from, to, refreshKey, panel]);
 
   const allEntries = useMemo(
     () => Object.values(entriesByAccount).flat(),
@@ -350,6 +369,36 @@ export default function FinanceDashboard() {
                   <td className="px-4 py-3 text-stone-600">{dateLabel(entry.date)}</td>
                   <td className={`px-4 py-3 text-right font-semibold ${isRevenue ? 'text-emerald-700' : 'text-rose-700'}`}>{isRevenue ? '+' : '-'} {money(entry.amount)}</td>
                   <td className="px-2 py-3 text-right"><button type="button" onClick={() => void deleteEntry(entry.id)} disabled={busy} aria-label={`Excluir ${entry.description}`} title="Excluir lançamento" className="rounded p-2 text-stone-500 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50"><Trash2 size={16} /></button></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  function renderSummaryEntries(rows: SummaryEntry[]) {
+    if (!rows.length) {
+      return <p className="px-4 py-10 text-center text-sm text-stone-500">Nenhum lançamento neste período.</p>;
+    }
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[620px] text-left text-sm">
+          <thead className="border-b border-stone-200 text-xs uppercase tracking-wide text-stone-500">
+            <tr><th className="px-4 py-3 font-semibold">Descrição</th><th className="px-4 py-3 font-semibold">Conta</th><th className="px-4 py-3 font-semibold">Data</th><th className="px-4 py-3 text-right font-semibold">Valor</th><th className="w-12 px-2 py-3" /></tr>
+          </thead>
+          <tbody>
+            {rows.map((entry, index) => {
+              const isRevenue = entry.type === 'RECEITA';
+              const entryId = entry.id;
+              return (
+                <tr key={entry.id ?? `${entry.date}-${index}`} className="border-b border-stone-100 last:border-0">
+                  <td className="px-4 py-3"><p className="font-medium text-stone-900">{entry.description}</p><p className="mt-0.5 text-xs text-stone-500">{entry.category?.name ?? 'Sem categoria'}</p></td>
+                  <td className="px-4 py-3 text-stone-600">{entry.account.name}</td>
+                  <td className="px-4 py-3 text-stone-600">{dateLabel(entry.date)}</td>
+                  <td className={`px-4 py-3 text-right font-semibold ${isRevenue ? 'text-emerald-700' : 'text-rose-700'}`}>{isRevenue ? '+' : '-'} {money(entry.amount)}</td>
+                  <td className="px-2 py-3 text-right">{entryId !== null && <button type="button" onClick={() => void deleteEntry(entryId)} disabled={busy} aria-label={`Excluir ${entry.description}`} title="Excluir lançamento" className="rounded p-2 text-stone-500 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50"><Trash2 size={16} /></button>}</td>
                 </tr>
               );
             })}
@@ -555,8 +604,8 @@ export default function FinanceDashboard() {
 
             {panel === 'overview' && <>
               <section className="grid gap-3 sm:grid-cols-3"><article className="border-l-4 border-emerald-700 bg-white p-5 shadow-sm"><p className="text-sm text-stone-500">Saldo do período</p><p className="mt-3 text-2xl font-bold">{money(summary?.balance ?? 0)}</p></article><article className="border-l-4 border-teal-500 bg-white p-5 shadow-sm"><p className="text-sm text-stone-500">Receitas</p><p className="mt-3 flex items-center gap-2 text-2xl font-bold text-emerald-800"><ArrowUpRight size={20} />{money(summary?.totalRevenues ?? 0)}</p></article><article className="border-l-4 border-rose-500 bg-white p-5 shadow-sm"><p className="text-sm text-stone-500">Despesas</p><p className="mt-3 flex items-center gap-2 text-2xl font-bold text-rose-700"><ArrowDownRight size={20} />{money(summary?.totalExpenses ?? 0)}</p></article></section>
-              <section className="mt-8"><div className="mb-3 flex items-center justify-between"><h2 className="text-base font-bold">Contas</h2><button type="button" onClick={() => setPanel('accounts')} className="text-sm font-semibold text-emerald-800 hover:underline">Gerenciar contas</button></div>{accounts.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{accounts.map((account) => { const balance = (entriesByAccount[account.id] ?? []).reduce((total, entry) => total + (entry.type === 'RECEITA' ? entry.amount : -entry.amount), 0); return <article key={account.id} className="flex items-center justify-between border border-stone-200 bg-white p-4"><div className="flex min-w-0 items-center gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-800"><Wallet size={19} /></span><div className="min-w-0"><p className="truncate font-semibold">{account.name}</p><p className="text-xs text-stone-500">{account.status.toLowerCase()}</p></div></div><p className="font-bold">{money(balance)}</p></article>; })}</div> : <p className="border border-dashed border-stone-300 bg-white px-4 py-10 text-center text-sm text-stone-500">Nenhuma conta cadastrada.</p>}</section>
-              <section className="mt-8 bg-white shadow-sm"><div className="flex items-center justify-between border-b border-stone-200 px-4 py-4"><h2 className="font-bold">Lançamentos recentes</h2><button type="button" onClick={() => setPanel('entries')} className="text-sm font-semibold text-emerald-800 hover:underline">Ver todos</button></div>{renderEntries([...allEntries].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5))}</section>
+              <section className="mt-8"><div className="mb-3 flex items-center justify-between"><h2 className="text-base font-bold">Contas</h2><button type="button" onClick={() => setPanel('accounts')} className="text-sm font-semibold text-emerald-800 hover:underline">Gerenciar contas</button></div>{summary?.balanceByAccount.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{summary.balanceByAccount.map((account) => <article key={account.id} className="flex items-center justify-between border border-stone-200 bg-white p-4"><div className="flex min-w-0 items-center gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-800"><Wallet size={19} /></span><div className="min-w-0"><p className="truncate font-semibold">{account.name}</p><p className="text-xs text-stone-500">{account.status.toLowerCase()}</p></div></div><p className="font-bold">{money(account.balance)}</p></article>)}</div> : <p className="border border-dashed border-stone-300 bg-white px-4 py-10 text-center text-sm text-stone-500">Nenhuma conta cadastrada.</p>}</section>
+              <section className="mt-8 bg-white shadow-sm"><div className="flex items-center justify-between border-b border-stone-200 px-4 py-4"><h2 className="font-bold">Lançamentos recentes</h2><button type="button" onClick={() => setPanel('entries')} className="text-sm font-semibold text-emerald-800 hover:underline">Ver todos</button></div>{renderSummaryEntries((summary?.recentEntries ?? []).slice(0, 5))}</section>
             </>}
 
             {panel === 'accounts' && <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]"><section><h2 className="mb-3 text-base font-bold">Suas contas</h2><div className="divide-y divide-stone-200 border-y border-stone-200 bg-white">{accounts.map((account) => editingAccount === account.id ? <form key={account.id} onSubmit={(event) => void updateAccount(event, account)} className="grid gap-3 p-4 sm:grid-cols-[1fr_150px_auto_auto] sm:items-end"><div><label className={labelClass} htmlFor={`account-name-${account.id}`}>Nome</label><input id={`account-name-${account.id}`} name="name" defaultValue={account.name} required className={inputClass} /></div><div><label className={labelClass} htmlFor={`account-status-${account.id}`}>Status</label><select id={`account-status-${account.id}`} name="status" defaultValue={account.status} className={inputClass}><option value="ATIVA">Ativa</option><option value="INATIVA">Inativa</option></select></div><button disabled={busy} className={primaryButton}>Salvar</button><button type="button" onClick={() => setEditingAccount(null)} className="rounded-md px-3 py-2 text-sm text-stone-600 hover:bg-stone-100">Cancelar</button></form> : <div key={account.id} className="flex items-center justify-between gap-4 p-4"><div><p className="font-semibold">{account.name}</p><p className="mt-1 text-xs text-stone-500">{account.status}</p></div><button type="button" onClick={() => setEditingAccount(account.id)} aria-label={`Editar ${account.name}`} title="Editar conta" className="rounded p-2 text-stone-600 hover:bg-stone-100"><Pencil size={17} /></button></div>)}</div></section><form onSubmit={(event) => void createAccount(event)} className="h-fit border border-stone-200 bg-white p-5"><h2 className="font-bold">Nova conta</h2><label className={`${labelClass} mt-4`} htmlFor="new-account">Nome da conta</label><input id="new-account" value={accountName} onChange={(event) => setAccountName(event.target.value)} required maxLength={80} className={inputClass} placeholder="Ex.: Conta corrente" /><button disabled={busy} className={`${primaryButton} mt-4 w-full`}><Plus size={17} />Criar conta</button></form></div>}
